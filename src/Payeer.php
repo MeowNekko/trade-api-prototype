@@ -2,6 +2,7 @@
 namespace Payeer\TradeApiPrototype;
 
 use Exception;
+use GuzzleHttp\Client;
 
 class Payeer
 {
@@ -12,7 +13,7 @@ class Payeer
     private ?string $apiSecret;
     private array $params;
     private array $errors = [];
-    private array $headers = [];
+    private Client $client;
 
     /**
      * @param ?string $apiId
@@ -27,6 +28,7 @@ class Payeer
         $this->apiId = $apiId;
         $this->apiSecret = $apiSecret;
         $this->params = $params;
+        $this->client = new Client();
     }
 
     /**
@@ -37,31 +39,21 @@ class Payeer
      */
     private function request(string $method, array $params = []): array
     {
-        $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, self::URL . $method);
-
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_HEADER, false);
-
-        $this->headers['Content-Type'] = 'application/json';
+        $options['headers']['Content-Type'] = 'application/json';
 
         if ($this->apiId && $this->apiSecret) {
             $params['post']['ts'] = round(microtime(true) * 1000);
-            $this->headers['API-ID'] = $this->apiId;
-            $this->headers['API-SIGN'] = $this->getSign($method . json_encode($params['post']));
+            $options['body'] = json_encode($params['post']);
+            $options['headers']['API-ID'] = $this->apiId;
+            $options['headers']['API-SIGN'] = $this->getSign($method . $options['body']);
         }
-        if (!empty($params['post'])) {
-            $post = json_encode($params['post']);
-            curl_setopt($curl, CURLOPT_POST, true);
-            curl_setopt($curl, CURLOPT_POSTFIELDS, $post);
+        if (!empty($params['post']) && empty($options['body'])) {
+            $options['body'] = json_encode($params['post']);
         }
 
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $this->headers);
-
-        $response = curl_exec($curl);
-        curl_close($curl);
-
-        $result = $response ? json_decode($response, true) : '';
+        $type = empty($options['body']) ? 'GET' : 'POST';
+        $response = $this->client->request($type, self::URL . $method, $options);
+        $result = $response->getBody() ? json_decode($response->getBody(), true) : '';
 
         if (!empty($result) && !$result['success']) {
             $this->errors = $result['error'] ?? [];
