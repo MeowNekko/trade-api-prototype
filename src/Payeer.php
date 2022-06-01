@@ -2,19 +2,31 @@
 
 namespace Payeer\TradeApiPrototype;
 
+use Exception;
+
 class Payeer
 {
-    private $arParams = array();
-    private $arError = array();
+    const DEFAULT_PAIR  = 'BTC_USDT';
+
+    private array $arParams = [];
+    private array $errors = [];
 
 
-    public function __construct($params = array())
-    {
+    /**
+     * @param array $params
+     */
+    public function __construct(
+        $params = []
+    ) {
         $this->arParams = $params;
     }
 
-
-    private function Request($req = array())
+    /**
+     * @param array $req
+     * @return mixed
+     * @throws Exception
+     */
+    private function Request($req = [])
     {
         $msec = round(microtime(true) * 1000);
         $req['post']['ts'] = $msec;
@@ -46,81 +58,106 @@ class Payeer
 
         if ($arResponse['success'] !== true)
         {
-            $this->arError = $arResponse['error'];
+            $this->errors = $arResponse['error'];
             throw new Exception($arResponse['error']['code']);
         }
 
         return $arResponse;
     }
 
-
-    public function GetError()
+    /**
+     * @return array
+     */
+    public function getError(): array
     {
-        return $this->arError;
+        return $this->errors;
     }
 
-
-    public function Info()
+    /**
+     * @param string $pair
+     * @return array
+     * @throws Exception
+     */
+    public function getInfo(string $pair): array
     {
-        $res = $this->Request(array(
+        $res = $this->Request([
             'method' => 'info',
-        ));
+        ]);
 
         return $res;
     }
 
-
-    public function Orders($pair = 'BTC_USDT')
+    /**
+     * @param string $pair
+     * @return mixed
+     * @throws Exception
+     */
+    public function getOrders(string $pair = self::DEFAULT_PAIR): array
     {
-        $res = $this->Request(array(
+        $res = $this->Request([
             'method' => 'orders',
             'post' => array(
                 'pair' => $pair,
             ),
-        ));
+        ]);
 
         return $res['pairs'];
     }
 
-
-    public function Account()
+    /**
+     * @return mixed
+     * @throws Exception
+     */
+    public function getAccount(): array
     {
-        $res = $this->Request(array(
+        $res = $this->Request([
             'method' => 'account',
-        ));
+        ]);
 
         return $res['balances'];
     }
 
-
-    public function OrderCreate($req = array())
+    /**
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function createOrder(array $params = []): array
     {
-        $res = $this->Request(array(
+        $res = $this->Request([
             'method' => 'order_create',
-            'post' => $req,
-        ));
+            'post' => $params,
+        ]);
 
         return $res;
     }
 
-
-    public function OrderStatus($req = array())
+    /**
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function getOrderStatus(array $params = []): array
     {
-        $res = $this->Request(array(
+        $res = $this->Request([
             'method' => 'order_status',
-            'post' => $req,
-        ));
+            'post' => $params,
+        ]);
 
         return $res['order'];
     }
 
-
-    public function MyOrders($req = array())
+    /**
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function getMyOrders(array $params = []): array
     {
-        $res = $this->Request(array(
+        $res = $this->Request([
             'method' => 'my_orders',
-            'post' => $req,
-        ));
+            'post' => $params,
+        ]);
 
         return $res['items'];
     }
