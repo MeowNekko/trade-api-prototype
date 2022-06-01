@@ -13,7 +13,6 @@ class Payeer
     private array $params;
     private array $errors = [];
     private array $headers = [];
-    private $curl;
 
     /**
      * @param ?string $apiId
@@ -38,29 +37,29 @@ class Payeer
      */
     private function request(string $method, array $params = []): array
     {
-        $this->curl = curl_init();
-        curl_setopt($this->curl, CURLOPT_URL, self::URL . $method);
+        $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, self::URL . $method);
 
-        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->curl, CURLOPT_HEADER, false);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_HEADER, false);
 
         $this->headers['Content-Type'] = 'application/json';
 
         if ($this->apiId && $this->apiSecret) {
-            $params['post']['ts'] = round(microtime(true) * 1000);;
+            $params['post']['ts'] = round(microtime(true) * 1000);
             $this->headers['API-ID'] = $this->apiId;
             $this->headers['API-SIGN'] = $this->getSign($method . json_encode($params['post']));
         }
         if (!empty($params['post'])) {
             $post = json_encode($params['post']);
-            curl_setopt($this->curl, CURLOPT_POST, true);
-            curl_setopt($this->curl, CURLOPT_POSTFIELDS, $post);
+            curl_setopt($curl, CURLOPT_POST, true);
+            curl_setopt($curl, CURLOPT_POSTFIELDS, $post);
         }
 
-        curl_setopt($this->curl, CURLOPT_HTTPHEADER, $this->headers);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, $this->headers);
 
-        $response = curl_exec($this->curl);
-        curl_close($this->curl);
+        $response = curl_exec($curl);
+        curl_close($curl);
 
         $result = $response ? json_decode($response, true) : '';
 
@@ -89,11 +88,11 @@ class Payeer
     }
 
     /**
-     * @param string $pair
+     * @param ?string $pair
      * @return array
      * @throws Exception
      */
-    public function getInfo(string $pair): array
+    public function getInfo(?string $pair = null): array
     {
         $data = [];
 

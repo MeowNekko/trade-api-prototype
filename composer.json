@@ -1,12 +1,18 @@
 {
   "name": "payeer/trade-api-prototype",
   "description": "Payeer Trade API",
+  "authors": [
+    {
+      "name": "Sergey Nilov",
+      "email": "stopenjoy64@gmail.com"
+    }
+  ],
   "require": {
     "php": ">=7.4.28 || ^8.1"
   },
   "autoload": {
     "psr-4": {
-      "Payeer\\TradeApiPrototype\\": "src"
+      "Payeer\\TradeApiPrototype\\": "src/"
     }
   },
   "require-dev": {
