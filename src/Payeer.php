@@ -1,68 +1,75 @@
 <?php
-
 namespace Payeer\TradeApiPrototype;
 
 use Exception;
 
 class Payeer
 {
+    const URL           = 'https://payeer.com/api/trade/';
     const DEFAULT_PAIR  = 'BTC_USDT';
 
-    private array $arParams = [];
+    private ?string $apiId;
+    private ?string $apiSecret;
+    private array $params;
     private array $errors = [];
-
+    private array $headers = [];
+    private $curl;
 
     /**
+     * @param ?string $apiId
+     * @param ?string $apiSecret
      * @param array $params
      */
     public function __construct(
-        $params = []
+        ?string $apiId = null,
+        ?string $apiSecret = null,
+        array $params = []
     ) {
-        $this->arParams = $params;
+        $this->apiId = $apiId;
+        $this->apiSecret = $apiSecret;
+        $this->params = $params;
     }
 
     /**
-     * @param array $req
-     * @return mixed
+     * @param string $method
+     * @param array $params
+     * @return array
      * @throws Exception
      */
-    private function Request($req = [])
+    private function request(string $method, array $params = []): array
     {
-        $msec = round(microtime(true) * 1000);
-        $req['post']['ts'] = $msec;
+        $this->curl = curl_init();
+        curl_setopt($this->curl, CURLOPT_URL, self::URL . $method);
 
-        $post = json_encode($req['post']);
+        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($this->curl, CURLOPT_HEADER, false);
 
-        $sign = hash_hmac('sha256', $req['method'].$post, $this->arParams['key']);
+        $this->headers['Content-Type'] = 'application/json';
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, "https://payeer.com/api/trade/".$req['method']);
-
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HEADER, false);
-        //curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
-
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-            "Content-Type: application/json",
-            "API-ID: ".$this->arParams['id'],
-            "API-SIGN: ".$sign
-        ));
-
-        $response = curl_exec($ch);
-        curl_close($ch);
-
-        $arResponse = json_decode($response, true);
-
-        if ($arResponse['success'] !== true)
-        {
-            $this->errors = $arResponse['error'];
-            throw new Exception($arResponse['error']['code']);
+        if ($this->apiId && $this->apiSecret) {
+            $params['post']['ts'] = round(microtime(true) * 1000);;
+            $this->headers['API-ID'] = $this->apiId;
+            $this->headers['API-SIGN'] = $this->getSign($method . json_encode($params['post']));
+        }
+        if (!empty($params['post'])) {
+            $post = json_encode($params['post']);
+            curl_setopt($this->curl, CURLOPT_POST, true);
+            curl_setopt($this->curl, CURLOPT_POSTFIELDS, $post);
         }
 
-        return $arResponse;
+        curl_setopt($this->curl, CURLOPT_HTTPHEADER, $this->headers);
+
+        $response = curl_exec($this->curl);
+        curl_close($this->curl);
+
+        $result = $response ? json_decode($response, true) : '';
+
+        if (!empty($result) && !$result['success']) {
+            $this->errors = $result['error'] ?? [];
+            throw new Exception($result['error']['code'] ?? '');
+        }
+
+        return $result ?? [];
     }
 
     /**
@@ -70,7 +77,15 @@ class Payeer
      */
     public function getError(): array
     {
-        return $this->errors;
+        return $this->errors ?? [];
+    }
+
+    /**
+     * @param string $data
+     * @return string
+     */
+    private function getSign(string $data): string {
+        return hash_hmac('sha256', $data, $this->apiSecret) ?? '';
     }
 
     /**
@@ -80,11 +95,29 @@ class Payeer
      */
     public function getInfo(string $pair): array
     {
-        $res = $this->Request([
-            'method' => 'info',
+        $data = [];
+
+        if (!empty($pair)) {
+            $data['pair'] = $pair;
+        }
+
+        return $this->request('info', $data);
+    }
+
+    /**
+     * @param string $pair
+     * @return array
+     * @throws Exception
+     */
+    public function getTicker(string $pair = self::DEFAULT_PAIR): array
+    {
+        $result = $this->request('ticker', [
+            'post' => [
+                'pair' => $pair
+            ]
         ]);
 
-        return $res;
+        return $result['pairs'];
     }
 
     /**
@@ -94,14 +127,29 @@ class Payeer
      */
     public function getOrders(string $pair = self::DEFAULT_PAIR): array
     {
-        $res = $this->Request([
-            'method' => 'orders',
-            'post' => array(
-                'pair' => $pair,
-            ),
+        $result = $this->request('orders', [
+            'post' => [
+                'pair' => $pair
+            ]
         ]);
 
-        return $res['pairs'];
+        return $result['pairs'];
+    }
+
+    /**
+     * @param string $pair
+     * @return array
+     * @throws Exception
+     */
+    public function getTrades(string $pair = self::DEFAULT_PAIR): array
+    {
+        $result = $this->request('trades', [
+            'post' => [
+                'pair' => $pair
+            ]
+        ]);
+
+        return $result['pairs'];
     }
 
     /**
@@ -110,11 +158,9 @@ class Payeer
      */
     public function getAccount(): array
     {
-        $res = $this->Request([
-            'method' => 'account',
-        ]);
+        $result = $this->request('account');
 
-        return $res['balances'];
+        return $result['balances'];
     }
 
     /**
@@ -124,12 +170,9 @@ class Payeer
      */
     public function createOrder(array $params = []): array
     {
-        $res = $this->Request([
-            'method' => 'order_create',
-            'post' => $params,
+        return $this->request('order_create', [
+            'post' => $params
         ]);
-
-        return $res;
     }
 
     /**
@@ -139,12 +182,37 @@ class Payeer
      */
     public function getOrderStatus(array $params = []): array
     {
-        $res = $this->Request([
-            'method' => 'order_status',
-            'post' => $params,
+        $result = $this->request('order_status', [
+            'post' => $params
         ]);
 
-        return $res['order'];
+        return $result['order'];
+    }
+
+    /**
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function cancelOrder(array $params = []): array
+    {
+        return $this->request('order_cancel', [
+            'post' => $params
+        ]);
+    }
+
+    /**
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function cancelOrders(array $params = []): array
+    {
+        $result = $this->request('orders_cancel', [
+            'post' => $params
+        ]);
+
+        return $result['items'];
     }
 
     /**
@@ -154,11 +222,24 @@ class Payeer
      */
     public function getMyOrders(array $params = []): array
     {
-        $res = $this->Request([
-            'method' => 'my_orders',
-            'post' => $params,
+        $result = $this->request('my_orders', [
+            'post' => $params
         ]);
 
-        return $res['items'];
+        return $result['items'];
+    }
+
+    /**
+     * @param array $params
+     * @return array
+     * @throws Exception
+     */
+    public function getMyTrades(array $params = []): array
+    {
+        $result = $this->request('my_trades', [
+            'post' => $params
+        ]);
+
+        return $result['items'];
     }
 }
